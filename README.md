@@ -1,619 +1,613 @@
-# Agent Engineering Starter Kit
+# Agent Engineering Learning Demo
 
-> 基于 LangGraph + Langfuse + DeepEval 的现代 Agent 工程化教程框架
+> 面向初学者的故障运维 Agent 教程项目，重点展示 Agent 如何理解故障现象、自主选择工具、查询轻量运维知识与案例，并生成可执行的排查与处置建议。
 
----
+本项目不是通用聊天机器人，也不是完整工单系统。它是一个 **Agent Engineering 教学沙盘**，用一个足够真实但可控的故障运维场景，讲清楚现代 Agent 系统的核心工程结构。
 
-# 项目简介
+## 核心场景
 
-本项目是一个：
+用户入口不是告警编号，也不是工单编号，而是一个自然语言描述的故障现象。
 
-```text
-可运行
-可观测
-可评估
-可扩展
-```
-
-的现代 Agent Engineering（Agent 工程化）教程级框架。
-
-项目重点不是：
+示例输入：
 
 ```text
-聊天机器人 Demo
+冷却水泵声音变大，出水流量下降，泵体温度也偏高，可能是什么问题？
 ```
 
-而是完整展示：
+Agent 需要自行判断：
 
 ```text
-Build
-→ Observe
-→ Evaluate
-→ Optimize
+这是什么设备？
+有哪些故障现象？
+当前风险高不高？
+应该先查基础排查知识、指标、日志、历史案例，还是先追问用户？
+查到的信息是否足够形成处置建议？
 ```
 
-的现代 Agent 开发生命周期。
+交互过程应该是多轮的。Agent 不应该在信息不足时硬给结论，而是边理解、边查询、边追问。
 
----
-
-# 项目目标
-
-本项目旨在帮助开发者理解：
-
-- 什么是现代 Agent Runtime
-- Agent 如何进行 Tool Calling
-- Agent Workflow 如何组织
-- 如何观测 Agent 内部运行过程
-- 如何评估 Agent 的效果
-- 如何构建生产级 Agent 架构
-
----
-
-# 为什么做这个项目
-
-目前很多 Agent Demo 存在以下问题：
-
-| 问题 | 描述 |
-|---|---|
-| 黑盒化 | Agent 内部过程不可见 |
-| 缺乏观测 | 无法看到 Tool Call / Latency / Token |
-| 缺乏评测 | 无法知道 Agent 是否真的有效 |
-| 架构混乱 | Prompt、Tool、Workflow 耦合严重 |
-| 不可扩展 | 难以演进成真实系统 |
-
-本项目希望通过现代 Agent Engineering 架构解决这些问题。
-
----
-
-# 技术栈
-
-| 层 | 技术 | 职责 |
-|---|---|---|
-| Components | LangChain | 模型、Prompt、Tool 抽象 |
-| Runtime | LangGraph | Agent 工作流与状态机 |
-| Observability | Langfuse | Trace / Span / Token / Latency |
-| Evaluation | DeepEval | Agent 自动评测 |
-| Backend API | FastAPI | API 服务 |
-| Frontend UI | Streamlit | 可视化交互界面 |
-
----
-
-# 核心设计理念
-
-本项目遵循：
-
-# Agent Engineering
-
-而不是：
+示例互动：
 
 ```text
-Chatbot Demo
+用户：
+冷却水泵声音变大，出水流量下降，泵体温度也偏高，可能是什么问题？
+
+Agent：
+我先按“冷却水泵 + 异响 + 流量下降 + 温度升高”理解。
+这类现象可能和入口堵塞、阀门开度、轴承异常或空转有关。
+我需要先确认两个信息：
+1. 温度大概升到多少？
+2. 现场振动是否明显变大？
+
+用户：
+温度 92 度，振动也比平时明显。
+
+Agent：
+这已经接近高风险信号。我会优先查基础排查知识和相似历史案例，
+同时查看泵的温度、流量、振动阈值。
+
+Agent 调用工具：
+- runbook_search
+- case_search
+- metric_query
+
+Agent：
+结合证据，最可能原因是入口过滤器堵塞或轴承异常。
+建议先切换备用泵，再隔离检查过滤器和轴承状态。
 ```
 
-因此系统重点包括：
-
-- Runtime 可视化
-- Workflow 编排
-- State 管理
-- Tool 调用
-- Trace 观测
-- Evaluation 评测
-- 可扩展架构
-
----
-
-# 为什么选择 LangGraph
-
-传统 LangChain Agent：
-
-```python
-initialize_agent(...)
-```
-
-通常存在：
-
-- 黑盒执行
-- 不可控
-- 难调试
-- 难扩展
-- 不适合复杂 Agent
-
-因此本项目采用：
-
-# LangGraph
-
-作为核心 Agent Runtime。
-
-LangGraph 的核心思想：
+最终输出面向一线运维人员：
 
 ```text
-Agent = State + Node + Edge
+1. 现象理解
+2. 风险判断
+3. 可能原因排序
+4. 建议补充确认的信息
+5. 排查步骤
+6. 临时处置建议
+7. 命中的基础知识或历史案例
+8. 何时升级、停机或转人工
 ```
 
-即：
+## 教学目标
 
-- State：Agent 当前状态
-- Node：执行节点
-- Edge：状态流转关系
+这个项目要让初学者一眼看懂：
 
-这种方式非常适合：
+- Agent 和普通流程编排的区别
+- LangGraph 如何表达 State / Node / Edge / Router
+- Agent 如何根据上下文选择工具，而不是固定查一遍所有系统
+- 轻量知识库和案例库如何辅助 Agent 做判断
+- 如何把运行过程展示成可观察的教学界面
+- 后续如何接入 Langfuse 做链路观测，接入 DeepEval 做效果评测
+- 2.0 版本如何接入设备文档和维保知识导入
 
-- Tool Calling
-- 多步推理
-- Workflow Orchestration
-- 多 Agent
-- Human-in-the-loop
+## Agentic 主线
 
----
-
-# 为什么选择 Langfuse
-
-如果 Agent 没有 Observability：
-
-```text
-≈ 无法调试
-```
-
-因此本项目采用：
-
-# Langfuse
-
-用于：
-
-- Trace
-- Span
-- Tool Call
-- Token Usage
-- Latency
-- Runtime Inspection
-
-Langfuse 是整个 Agent 系统的观测层。
-
----
-
-# 为什么选择 DeepEval
-
-现代 Agent 系统不能只“能运行”。
-
-还必须：
-
-```text
-可评估
-可量化
-可回归测试
-```
-
-因此本项目采用：
-
-# DeepEval
-
-用于：
-
-- Answer Relevancy
-- Faithfulness
-- Task Completion
-- Regression Testing
-
----
-
-# Demo 场景设计
-
-本项目采用：
-
-# 智能数据分析 Agent
-
-作为完整教程案例。
-
----
-
-# 示例场景
-
-用户输入：
-
-```text
-请帮我分析 2025 年第一季度销售数据，
-统计各地区销售额，并生成趋势图。
-```
-
-Agent 自动：
-
-```text
-1. 理解任务
-2. 规划执行步骤
-3. 调用 Python Tool
-4. 分析 CSV 数据
-5. 生成统计图表
-6. 输出分析报告
-```
-
----
-
-# 为什么选择这个案例
-
-相比：
-
-```text
-天气查询 Demo
-```
-
-智能数据分析 Agent 更适合展示：
-
-| 能力 | 是否体现 |
-|---|---|
-| Tool Calling | YES |
-| 多步推理 | YES |
-| Python Execution | YES |
-| Workflow | YES |
-| Structured Output | YES |
-| Evaluation | YES |
-
-同时：
-
-```text
-复杂度仍然可控
-```
-
-非常适合作为教程级 Agent 项目。
-
----
-
-# V1 功能范围
-
-V1 聚焦：
-
-# 单 Agent Runtime
-
-不做：
-
-- Multi-Agent
-- MCP
-- Browser Agent
-- RAG
-- Long-term Memory
-
----
-
-# V1 功能列表
-
-## 1. Chat Agent
-
-支持：
-
-- 多轮对话
-- Tool Calling
-- Agent Loop
-- Final Response
-
----
-
-## 2. Python Analysis Tool
-
-核心工具：
-
-```python
-python_exec(code)
-```
-
-用于：
-
-- DataFrame 分析
-- 图表生成
-- 数据统计
-
----
-
-## 3. Web Search Tool
-
-用于：
-
-- 外部知识获取
-- 搜索补充信息
-
----
-
-## 4. Langfuse Trace
-
-展示：
-
-```text
-LLM Call
-→ Tool Call
-→ Tool Result
-→ Final Response
-```
-
----
-
-## 5. DeepEval
-
-自动评测：
-
-| Metric | 作用 |
-|---|---|
-| AnswerRelevancyMetric | 回答相关性 |
-| FaithfulnessMetric | 幻觉检测 |
-| TaskCompletionMetric | 任务完成度 |
-
----
-
-# Agent Runtime 设计
-
-Agent Workflow：
+推荐的 V1 工作流：
 
 ```text
 START
   ↓
-chatbot
+understand_symptom
   ↓
-need_tool?
-  ├── yes → tools
-  │            ↓
-  │         chatbot
-  │
-  └── no → END
+decide_next_action
+  ├── ask_clarifying_question
+  ├── search_basic_runbook
+  ├── search_historical_cases
+  ├── query_metric_thresholds
+  ├── search_logs
+  ├── reflect
+  └── generate_response
 ```
 
-这是：
+关键点是：**工具选择由 Agent 根据故障现象决定**。
 
-# 标准 ReAct Workflow
-
----
-
-# 系统架构
+多轮互动时，工作流不是一次性结束，而是随着用户补充信息继续更新 State：
 
 ```text
-                ┌────────────────┐
-                │   Streamlit UI │
-                └────────┬───────┘
-                         ↓
-                ┌────────────────┐
-                │    FastAPI     │
-                └────────┬───────┘
-                         ↓
-                ┌────────────────┐
-                │   LangGraph    │
-                │ Agent Runtime  │
-                └────────┬───────┘
-                         ↓
-        ┌────────────────────────────────┐
-        │                                │
-        ↓                                ↓
-┌──────────────┐               ┌────────────────┐
-│ LangChain    │               │ Langfuse       │
-│ Components   │               │ Observability  │
-└──────┬───────┘               └────────────────┘
-       ↓
-┌──────────────┐
-│ LLM + Tools  │
-└──────────────┘
-
-                         ↓
-                ┌────────────────┐
-                │   DeepEval     │
-                │   Evaluation   │
-                └────────────────┘
+用户补充信息
+  ↓
+update_symptom_state
+  ↓
+decide_next_action
+  ↓
+tool_or_question_or_final
 ```
 
----
+## Agent Loop 设计
 
-# 项目目录结构
+本项目需要明确展示一个 Agent Loop，而不是一次性问答。
+
+Agent Loop 的核心过程：
 
 ```text
-agent-engineering-starter/
-│
-├── app/
-│
-│   ├── agent/
-│   │   ├── graph.py
-│   │   ├── state.py
-│   │   ├── router.py
-│   │   ├── prompts/
-│   │   └── nodes/
-│   │
-│   ├── llm/
-│   │   └── models.py
-│   │
-│   ├── tools/
-│   │   ├── python_exec.py
-│   │   └── web_search.py
-│   │
-│   ├── observability/
-│   │   └── langfuse_config.py
-│   │
-│   ├── evaluation/
-│   │   ├── dataset.py
-│   │   ├── metrics.py
-│   │   └── run_eval.py
-│   │
-│   ├── api/
-│   │   └── main.py
-│   │
-│   └── ui/
-│       └── streamlit_app.py
-│
-├── tests/
-├── docker/
-├── .env
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
+用户输入或补充现场信息
+  ↓
+理解当前信息
+  ↓
+更新 Agent State
+  ↓
+判断下一步动作
+  ├── 信息不足 → 追问用户，结束当前轮
+  ├── 需要证据 → 调用工具查询
+  ├── 证据不足 → 继续选择工具或追问
+  └── 信息足够 → 生成诊断和处置建议
 ```
 
----
-
-# Agent State 设计
+伪代码：
 
 ```python
-class AgentState(TypedDict):
-    messages: list
-    current_step: str
-    tool_result: str
-    final_answer: str
+while not final_answer:
+    understand_symptom()
+    update_state()
+    decide_next_action()
+
+    if next_action == "ask_user":
+        return question_to_user
+
+    if next_action == "call_tool":
+        tool_result = run_tool()
+        add_evidence(tool_result)
+        continue
+
+    if next_action == "final":
+        return final_answer
 ```
 
-State 是整个 LangGraph Runtime 的核心。
-
----
-
-# Node 设计
-
-V1 包含：
-
-| Node | 作用 |
-|---|---|
-| chatbot_node | LLM 推理 |
-| tools_node | Tool 调用 |
-| router_node | 判断是否继续 |
-| final_node | 输出整理 |
-
----
-
-# LangChain 使用原则
-
-本项目：
-
-# 使用 LangChain Components
-
-但：
-
-# 不使用旧版 Agent 抽象
-
----
-
-# 使用：
-
-| 组件 | 是否使用 |
-|---|---|
-| ChatOpenAI | YES |
-| PromptTemplate | YES |
-| @tool | YES |
-| OutputParser | YES |
-
----
-
-# 不使用：
-
-| 组件 | 原因 |
-|---|---|
-| initialize_agent | 黑盒 |
-| AgentExecutor | 老架构 |
-| old chains | 不适合现代 Agent |
-
----
-
-# UI 设计
-
-采用：
-
-# Streamlit
-
-布局：
+在 LangGraph 中可以表达为：
 
 ```text
-左侧：
+START
+  ↓
+understand_symptom
+  ↓
+decide_next_action
+  ├── ask_user → END_THIS_TURN
+  ├── call_tool → tool_node → update_state → decide_next_action
+  └── draft_answer → reflect → final_or_continue
+```
+
+这里的关键点是：`ask_user` 不是整个任务结束，而是当前轮结束。用户补充信息后，下一轮继续带着之前的 `AgentState` 进入 loop。
+
+为了让教程安全、清楚，V1 建议做受控循环：
+
+```text
+max_steps = 5
+每轮最多调用 1 个或一组相关工具
+如果连续两轮没有新增证据，就追问用户或给出保守结论
+涉及高风险信号时，优先输出保护性建议
+```
+
+页面右侧应展示每一步 loop：
+
+```text
+Loop 1:
+- action: ask_user
+- reason: 缺少温度数值和振动信息
+
+Loop 2:
+- action: call_tool
+- tools: runbook_search, metric_query
+- reason: 已获得温度和振动信息，需要查询阈值和基础排查知识
+
+Loop 3:
+- action: final
+- reason: 证据足够形成排查建议
+```
+
+## 自我反思与闭环
+
+故障运维场景里，Agent 不应该查到一点信息就直接给最终结论。V1 可以增加一个轻量 `reflect_node`，在最终回答前做自我检查。
+
+自我反思闭环：
+
+```text
+生成初步诊断
+  ↓
+reflect_node 自我检查
+  ├── 证据不足 → 回到 decide_next_action
+  ├── 缺少关键信息 → 追问用户
+  ├── 操作风险过高 → 加入升级/停机/人工确认建议
+  └── 检查通过 → 输出最终建议
+```
+
+反思节点重点检查：
+
+| 检查项 | 说明 |
+|---|---|
+| 设备是否明确 | 是否识别出冷却水泵、UPS、空压机等设备 |
+| 现象是否完整 | 是否覆盖用户描述的温度、压力、流量、声音、振动等现象 |
+| 证据是否足够 | 是否有基础知识、历史案例、指标或日志支撑判断 |
+| 风险是否处理 | 是否识别高温、剧烈振动、烟雾、漏液、供电风险等信号 |
+| 步骤是否安全 | 是否避免直接建议危险操作 |
+| 升级条件是否明确 | 是否说明何时转人工、停机或升级处理 |
+
+V1 反思可以先做成 checklist，不需要复杂多 Agent：
+
+```python
+reflection = {
+    "has_equipment": True,
+    "has_symptoms": True,
+    "has_evidence": True,
+    "has_risk_control": True,
+    "has_escalation_condition": True,
+    "decision": "ready"
+}
+```
+
+如果 `decision` 不是 `ready`，Agent Loop 继续运行。
+
+除了回答前的自我反思，还应该支持运维处置闭环。用户执行建议后，可以继续反馈结果：
+
+```text
+Agent：
+建议先切换备用泵，并观察温度和振动是否下降。
+
+用户：
+已经切到备用泵了，温度开始下降，但振动还是高。
+
+Agent：
+温度下降说明过热风险缓解，但振动仍高，下一步应重点检查轴承和联轴器。
+我会继续查询相似案例和振动阈值。
+```
+
+处置反馈闭环：
+
+```text
+给出处置建议
+  ↓
+用户反馈执行结果
+  ↓
+Agent 更新 State
+  ↓
+判断是否缓解
+  ├── 已缓解 → 给出观察和收尾建议
+  ├── 部分缓解 → 聚焦剩余异常继续排查
+  └── 未缓解或恶化 → 升级风险等级并切换排查方向
+```
+
+这让系统不只是“给答案”，而是能展示：
+
+```text
+Diagnosis
+→ Reflection
+→ Action
+→ Feedback
+→ Re-diagnosis
+```
+
+不是固定流程：
+
+```text
+查知识库 → 查案例 → 查指标 → 查日志
+```
+
+而是动态决策：
+
+| 用户描述 | Agent 倾向动作 |
+|---|---|
+| 设备明确，现象明确 | 检索内置基础排查知识 |
+| 提到温度、压力、流量、振动 | 查询指标阈值或历史趋势 |
+| 提到错误码、告警文本、日志关键字 | 搜索日志或告警案例 |
+| 描述和历史案例相似 | 搜索历史故障案例 |
+| 只说“设备坏了” | 先追问设备类型和具体现象 |
+| 涉及安全风险 | 优先给出保护性建议和升级条件 |
+
+## 多轮互动设计
+
+V1 要体现一个简单但真实的互动过程：
+
+```text
+1. 用户描述故障现象
+2. Agent 结构化理解
+3. Agent 判断信息是否足够
+4. 信息不足时追问用户
+5. 信息足够时选择工具查询
+6. Agent 汇总证据
+7. 必要时继续追问
+8. 最终输出诊断和处置建议
+```
+
+Agent 的中间回复不必每次都很长，重点是告诉用户：
+
+```text
+我理解到了什么
+我还缺什么
+我下一步准备查什么
+为什么要查这个
+```
+
+推荐的追问类型：
+
+| 缺失信息 | 追问示例 |
+|---|---|
+| 设备不明确 | “这是哪类设备？水泵、UPS、空压机，还是其他设备？” |
+| 现象太泛 | “主要异常是温度、压力、流量、声音、振动，还是报警灯？” |
+| 缺少严重度 | “异常持续多久了？是否已经影响业务或生产？” |
+| 缺少量化指标 | “温度、压力或流量大概是多少？和平时相比变化多大？” |
+| 涉及安全风险 | “现场是否有异味、烟雾、漏液、剧烈振动或人员风险？” |
+
+页面右侧应该展示互动过程中的 State 变化：
+
+```text
+Turn 1:
+- recognized_equipment: 冷却水泵
+- symptoms: 异响、流量下降、温度升高
+- missing_info: 温度数值、振动情况
+- next_action: ask_clarifying_question
+
+Turn 2:
+- risk_signals: 高温、振动升高
+- next_action: runbook_search + case_search + metric_query
+- evidence: ...
+```
+
+## 示例设备与故障
+
+V1 可以先围绕三类设备构建演示：
+
+| 设备 | 示例故障现象 |
+|---|---|
+| 冷却水泵 | 温度高、流量下降、异响、振动变大 |
+| UPS | 电池柜温度高、电压漂移、自检告警 |
+| 空压机 | 压力上不去、频繁加载卸载、过滤器压差高 |
+
+这些例子足够贴近真实运维，又不会让教程复杂到看不懂。
+
+## V1 轻量知识库与案例
+
+V1 不做设备文档导入，先准备几个简单案例和小型知识库，用来体现“Agent 根据现象自行决定去哪里查”。
+
+建议准备三类数据：
+
+```text
+1. 基础排查知识
+2. 历史故障案例
+3. 示例指标与日志
+```
+
+### 基础排查知识
+
+用于回答“这类现象一般先查什么”。
+
+| 设备 | 现象 | 基础排查知识 |
+|---|---|---|
+| 冷却水泵 | 温度高、流量下降、异响 | 先查阀门开度、过滤器堵塞、轴承温度、振动趋势、备用泵状态 |
+| UPS | 电池柜温度高、电压漂移 | 先查负载率、通风、单体电压差、自检结果、冗余状态 |
+| 空压机 | 压力上不去、频繁加载卸载 | 先查用气量、进气滤芯压差、泄漏点、排水阀、设定压力 |
+
+### 历史故障案例
+
+用于体现相似案例检索。
+
+| 案例 | 现象 | 最终原因 | 处置 |
+|---|---|---|---|
+| CASE-001 | 冷却水泵温度升高、流量下降 | 入口过滤器堵塞 | 切备用泵，隔离后清洗过滤器 |
+| CASE-002 | UPS 电池柜温度高、电压漂移 | 电池柜风扇故障 | 恢复通风，安排电池巡检 |
+| CASE-003 | 空压机压力下降、加载频繁 | 主管路泄漏 | 隔离泄漏支路，恢复压力 |
+
+### 示例指标与日志
+
+用于体现 Agent 会根据现象选择查指标或日志。
+
+| 设备 | 指标 |
+|---|---|
+| 冷却水泵 | 温度、流量、振动、电机电流 |
+| UPS | 电池电压漂移、柜内温度、负载率 |
+| 空压机 | 出口压力、滤芯压差、电机电流、加载频率 |
+
+## 用户界面
+
+前端不是用户系统，不做登录、权限、个人中心。
+
+页面应该是一个 **故障运维 Agent 教程控制台**：
+
+```text
+左侧：运行配置
 - 模型选择
 - Temperature
 - System Prompt
+- 示例故障现象
 
-中间：
-- Chat Window
+中间：交互区
+- 用户输入故障现象
+- Agent 追问关键信息
+- 用户补充现场信息
+- Agent 输出分析和处置建议
 
-右侧：
+右侧：教学可视化
 - Agent State
-- Tool Calls
-- Trace Timeline
-- Token Usage
-- Latency
+- 多轮对话 Turn 记录
+- 当前 Workflow 节点
+- Agent 决定调用的工具
+- Tool Calls 输入输出
+- 命中的基础知识或历史案例
+- 后续可展示 Langfuse Trace / Token / Latency
 ```
 
----
-
-# Docker 部署
-
-使用：
+用户体验重点：
 
 ```text
-docker-compose
+用户只需要描述现象。
+系统自己决定去哪里查。
+页面把 Agent 的判断过程展示出来。
 ```
 
-包含：
+## 后台架构
 
-| 服务 | 作用 |
+推荐技术栈：
+
+| 层 | 技术 | 职责 |
+|---|---|---|
+| UI | Streamlit | 教学控制台 |
+| API | FastAPI | 对外 HTTP 接口 |
+| Agent Runtime | LangGraph | 状态机、节点、路由、循环 |
+| Components | LangChain | LLM、Prompt、Tool 抽象 |
+| Knowledge | V1 内置轻量知识库，V2 升级文档导入/RAG | 基础排查知识与案例检索 |
+| Observability | Langfuse | Trace / Span / Tool Call / Token / Latency |
+| Evaluation | DeepEval | 故障回答质量评测 |
+
+建议分层：
+
+```text
+app/
+  api/              # FastAPI 路由，只负责 HTTP
+  services/         # 应用编排层
+  agent/            # LangGraph 工作流核心
+    state.py        # AgentState
+    graph.py        # build_graph()
+    router.py       # 工具选择和节点流转
+    nodes/          # understand / decide / tool / diagnose / final
+    prompts/        # 系统提示词
+  tools/            # metric_query / log_search / runbook_search / case_search
+  knowledge/        # V1 轻量知识库；V2 文档导入、解析、检索
+  observability/    # Langfuse 封装
+  evaluation/       # DeepEval 数据集与指标
+  schemas/          # 请求响应模型
+  ui/               # Streamlit 页面
+
+data/
+  demo/             # 示例指标、日志、历史案例、基础知识
+```
+
+分离原则：
+
+```text
+UI 不理解 LangGraph 内部实现。
+API 不直接写 Agent 节点逻辑。
+Graph 不关心 HTTP 和页面。
+Tools 只负责查询能力，不负责最终诊断。
+Knowledge 模块 V1 只保留轻量规则和案例检索边界，设备文档导入放到 2.0 版本。
+```
+
+## Agent State 设计
+
+建议的核心 State：
+
+```python
+class AgentState(TypedDict, total=False):
+    user_input: str
+    recognized_equipment: str
+    symptoms: list[str]
+    risk_signals: list[str]
+    missing_info: list[str]
+    conversation_turns: list[dict]
+    loop_history: list[dict]
+    step_count: int
+    max_steps: int
+    next_action: str
+    evidence: list[dict]
+    tool_calls: list[dict]
+    runbook_hits: list[dict]
+    case_hits: list[dict]
+    possible_causes: list[dict]
+    recommended_actions: list[str]
+    reflection: dict
+    feedback_history: list[dict]
+    final_answer: str
+```
+
+这个状态设计的重点是教学可读：
+
+```text
+用户说了什么
+Agent 理解成什么
+Agent 觉得缺什么
+Agent 决定查什么
+查到了什么证据
+最后如何形成建议
+```
+
+## V1 最小闭环
+
+第一版先做一个可运行闭环：
+
+```text
+用户输入故障现象
+  ↓
+进入 Agent Loop
+  ↓
+Agent 结构化理解设备和症状，并更新 State
+  ↓
+Agent 判断是否需要追问
+  ↓
+用户补充现场信息
+  ↓
+Agent 继续进入 Loop，决定调用 runbook_search / case_search / metric_query / log_search
+  ↓
+工具返回证据
+  ↓
+Agent 更新 State，并判断是否继续查、追问或结束
+  ↓
+Agent 生成初步诊断，并进入 reflect_node 自我检查
+  ↓
+检查不通过则继续追问或查证据；检查通过则输出建议
+  ↓
+页面展示回答、状态、工具调用和证据命中
+  ↓
+用户反馈执行结果后，Agent 继续更新 State 并进入下一轮闭环
+```
+
+建议先不用做：
+
+- 用户系统
+- 多 Agent
+- 完整 CMDB
+- 复杂工单流
+- 生产级权限
+- 生产级向量数据库
+- 设备文档导入
+
+## 2.0 设备文档导入
+
+设备文档、产品手册、维保指南放到 2.0 版本再做。
+
+2.0 可以增加一个独立模块：
+
+```text
+Document Import
+  ↓
+Document Parse
+  ↓
+Chunk
+  ↓
+Embedding / Index
+  ↓
+document_search Tool
+```
+
+这样 V1 保持简单清楚，2.0 再展示完整知识导入和 RAG 能力。
+
+## V2 扩展方向
+
+后续可以逐层增加：
+
+| 能力 | 说明 |
 |---|---|
-| app | Agent 服务 |
-| langfuse-web | Langfuse UI |
-| langfuse-worker | Trace Worker |
-| postgres | 数据存储 |
-| clickhouse | Trace Analytics |
+| 设备文档导入 | 支持用户准备的设备手册、维保指南、产品文档 |
+| 向量 RAG | 让设备手册、维保指南、历史案例都能被语义检索 |
+| 指标趋势分析 | 查询时间窗口内的温度、压力、流量、振动趋势 |
+| 工单生成 | 将最终处置建议转成标准工单 |
+| Langfuse Trace | 展示每次决策和工具调用 |
+| DeepEval | 评估回答是否覆盖风险、原因、步骤、升级条件 |
+| Human-in-the-loop | 高风险操作前请求人工确认 |
 
----
+## 最终定位
 
-# Evaluation Pipeline
-
-Evaluation Flow：
-
-```text
-Dataset
-  ↓
-Run Agent
-  ↓
-Collect Response
-  ↓
-DeepEval
-  ↓
-Generate Metrics
-```
-
----
-
-# V2 规划
-
-后续可扩展：
-
-| 功能 | 技术 |
-|---|---|
-| Memory | Redis |
-| Multi-Agent | Supervisor Pattern |
-| Reflection | Self-Refine |
-| MCP | Model Context Protocol |
-| Browser Tool | Playwright |
-| RAG | Chroma |
-| Persistence | PostgreSQL |
-
----
-
-# 项目最终定位
-
-本项目不是：
+本项目最终要表达的是：
 
 ```text
-聊天机器人 Demo
+一个初学者能看懂、能运行、能扩展的故障运维 Agent 工程样板。
 ```
 
-而是：
-
-# Agent Engineering Starter Kit
-
-用于：
-
-- 学习现代 Agent 架构
-- 理解 Agent Runtime
-- 理解 Observability
-- 理解 Evaluation
-- 搭建生产级 Agent 基础设施
-
----
-
-# 最终目标
-
-通过本项目，开发者能够掌握：
+它的价值不在于“回答像不像客服”，而在于清楚展示：
 
 ```text
-LangGraph Runtime
-+
-Langfuse Observability
-+
-DeepEval Evaluation
+Reasoning
+→ Tool Selection
+→ Evidence Collection
+→ Case / Knowledge Grounding
+→ Action Planning
+→ Observability
+→ Evaluation
 ```
-
-构成的现代 Agent Engineering 核心体系。
