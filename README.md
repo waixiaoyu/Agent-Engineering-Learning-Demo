@@ -1,8 +1,8 @@
 # Agent Engineering Learning Demo
 
-> 面向初学者的故障运维 Agent 教程项目，重点展示 Agent 如何理解故障现象、自主选择工具、查询轻量运维知识与案例，并生成可执行的排查与处置建议。
+> 面向初学者的故障运维 Agent 教程项目，重点展示 Agent 如何理解故障现象、自主选择工具、查询轻量运维知识与案例、完成自我反思，并通过 Langfuse 和 DeepEval 观察与评估整个过程。
 
-本项目不是通用聊天机器人，也不是完整工单系统。它是一个 **Agent Engineering 教学沙盘**，用一个足够真实但可控的故障运维场景，讲清楚现代 Agent 系统的核心工程结构。
+本项目不是通用聊天机器人，也不是完整工单系统。它是一个 **Agent Engineering 教学沙盘**，用一个足够真实但可控的故障运维场景，讲清楚现代 Agent 系统的核心工程结构。学习者不只是看到最终答案，还能看到 Agent 每一步为什么这样判断、为什么选择这个工具、证据如何进入 State、最终回答如何被观测和评测。
 
 ## 核心场景
 
@@ -78,12 +78,12 @@ Agent：
 - Agent 如何根据上下文选择工具，而不是固定查一遍所有系统
 - 轻量知识库和案例库如何辅助 Agent 做判断
 - 如何把运行过程展示成可观察的教学界面
-- 后续如何接入 Langfuse 做链路观测，接入 DeepEval 做效果评测
+- V1 如何接入 Langfuse 做链路观测，接入 DeepEval 做效果评测
 - 2.0 版本如何接入设备文档和维保知识导入
 
 ## Agentic 主线
 
-推荐的 V1 工作流：
+推荐的 V1 工作流要突出 Agentic 过程：
 
 ```text
 START
@@ -97,7 +97,9 @@ decide_next_action
   ├── query_metric_thresholds
   ├── search_logs
   ├── reflect
-  └── generate_response
+  ├── generate_response
+  ├── record_trace
+  └── run_evaluation
 ```
 
 关键点是：**工具选择由 Agent 根据故障现象决定**。
@@ -113,6 +115,18 @@ decide_next_action
   ↓
 tool_or_question_or_final
 ```
+
+学习者在这个主线里看到的不是“代码跑完了”，而是：
+
+| 阶段 | 学习者看到什么 | 学到什么 |
+|---|---|---|
+| understand_symptom | Agent 把用户原话结构化成设备、现象、风险信号 | State 是如何从自然语言产生的 |
+| decide_next_action | Agent 解释下一步是追问、查知识、查案例、查指标还是查日志 | Agentic 决策不是固定 if-else 流程 |
+| call_tool | 页面展示工具输入、输出和命中证据 | Tool Calling 如何接入业务数据 |
+| update_state | 证据被写回 `AgentState` | Agent 如何积累上下文 |
+| reflect | Agent 检查证据是否足够、步骤是否安全 | 自我反思如何提升可靠性 |
+| observe | Langfuse 展示节点、工具、耗时、token 和 trace | 可观测性如何帮助调试 Agent |
+| evaluate | DeepEval 对回答进行质量评测 | Agent 输出如何被量化和回归测试 |
 
 ## Agent Loop 设计
 
@@ -276,6 +290,75 @@ Diagnosis
 → Re-diagnosis
 ```
 
+## V1 观测与评测
+
+Langfuse 和 DeepEval 需要进入 V1，因为这个项目的核心是 Agent Engineering 教程，而不只是 Agent Demo。
+
+### Langfuse Observability
+
+V1 要把每次 Agent Loop 记录成 trace：
+
+```text
+Trace
+  ├── user_input
+  ├── understand_symptom span
+  ├── decide_next_action span
+  ├── tool_call span
+  │   ├── tool name
+  │   ├── tool input
+  │   └── tool output
+  ├── reflect span
+  └── final_answer
+```
+
+学习者应该能在页面或 Langfuse 控制台看到：
+
+| 观测项 | 学习意义 |
+|---|---|
+| 每个节点耗时 | 哪一步慢，为什么慢 |
+| Tool Call 输入输出 | Agent 到底查了什么 |
+| State 快照 | 每一轮上下文如何变化 |
+| Trace Timeline | Agent Loop 的完整路径 |
+| Token / Latency | LLM 调用成本和延迟 |
+
+### DeepEval Evaluation
+
+V1 也要提供最小评测集，用来评估故障回答是否合格。
+
+示例评测维度：
+
+| Metric | 检查内容 |
+|---|---|
+| Symptom Coverage | 是否覆盖用户描述的关键现象 |
+| Evidence Usage | 是否引用了工具或案例证据 |
+| Risk Awareness | 是否识别高风险信号 |
+| Actionability | 排查步骤是否可执行 |
+| Escalation Condition | 是否说明何时升级或转人工 |
+
+V1 不需要一开始就做复杂评测平台，但要有一个可运行的 evaluation pipeline：
+
+```text
+demo_cases
+  ↓
+run_agent
+  ↓
+collect_answer_and_trace
+  ↓
+run_deepeval_metrics
+  ↓
+show_eval_result
+```
+
+页面里可以用一个 “Evaluation” 区块展示：
+
+```text
+case_id: pump-overheat-001
+score: 0.82
+passed: true
+missing:
+- 缺少明确升级条件
+```
+
 不是固定流程：
 
 ```text
@@ -422,7 +505,8 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 - Agent 决定调用的工具
 - Tool Calls 输入输出
 - 命中的基础知识或历史案例
-- 后续可展示 Langfuse Trace / Token / Latency
+- Langfuse Trace / Token / Latency
+- DeepEval Evaluation Result
 ```
 
 用户体验重点：
@@ -444,8 +528,8 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 | Agent Runtime | LangGraph | 状态机、节点、路由、循环 |
 | Components | LangChain | LLM、Prompt、Tool 抽象 |
 | Knowledge | V1 内置轻量知识库，V2 升级文档导入/RAG | 基础排查知识与案例检索 |
-| Observability | Langfuse | Trace / Span / Tool Call / Token / Latency |
-| Evaluation | DeepEval | 故障回答质量评测 |
+| Observability | Langfuse | V1 记录 Trace / Span / Tool Call / Token / Latency |
+| Evaluation | DeepEval | V1 运行故障回答质量评测 |
 
 建议分层：
 
@@ -543,6 +627,10 @@ Agent 生成初步诊断，并进入 reflect_node 自我检查
   ↓
 检查不通过则继续追问或查证据；检查通过则输出建议
   ↓
+Langfuse 记录完整 trace
+  ↓
+DeepEval 对回答做质量评测
+  ↓
 页面展示回答、状态、工具调用和证据命中
   ↓
 用户反馈执行结果后，Agent 继续更新 State 并进入下一轮闭环
@@ -557,6 +645,7 @@ Agent 生成初步诊断，并进入 reflect_node 自我检查
 - 生产级权限
 - 生产级向量数据库
 - 设备文档导入
+- 大规模评测平台
 
 ## 2.0 设备文档导入
 
@@ -588,8 +677,8 @@ document_search Tool
 | 向量 RAG | 让设备手册、维保指南、历史案例都能被语义检索 |
 | 指标趋势分析 | 查询时间窗口内的温度、压力、流量、振动趋势 |
 | 工单生成 | 将最终处置建议转成标准工单 |
-| Langfuse Trace | 展示每次决策和工具调用 |
-| DeepEval | 评估回答是否覆盖风险、原因、步骤、升级条件 |
+| 评测集扩展 | 增加更多设备、更多故障现象和更严格指标 |
+| Trace 分析 | 对 Langfuse trace 做批量分析和性能优化 |
 | Human-in-the-loop | 高风险操作前请求人工确认 |
 
 ## 最终定位
