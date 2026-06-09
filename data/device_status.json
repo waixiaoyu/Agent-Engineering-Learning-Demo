@@ -1,0 +1,22 @@
+{
+  "s380-demo": {
+    "model": "eKitEngine S380",
+    "source": "demo_fixture",
+    "status_note": "V1 示例状态数据，不代表真实华为坤灵 APP 或真实设备接口。",
+    "local_connectivity": "ok",
+    "dhcp": "ok",
+    "wan_address_mode": "dhcp",
+    "onboarding_status": "waiting_online",
+    "last_seen": null,
+    "uplink_port": "link_up",
+    "downstream_discovery": "pending"
+  },
+  "ap-demo": {
+    "model": "AP",
+    "source": "demo_fixture",
+    "status_note": "V1 示例状态数据，用于展示剩余风险排查。",
+    "online_status": "unknown",
+    "topology": "missing",
+    "access_link": "needs_user_check"
+  }
+}

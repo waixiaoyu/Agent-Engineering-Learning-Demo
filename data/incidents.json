@@ -1,0 +1,43 @@
+[
+  {
+    "id": "INC-1001",
+    "title": "Cooling pump P-204 overheating with reduced flow",
+    "severity": "P1",
+    "equipment": "Cooling Pump P-204",
+    "component": "cooling_pump_P204",
+    "symptoms": [
+      "pump temperature above 90C",
+      "cooling flow below normal",
+      "vibration trend increasing",
+      "operator reports abnormal noise"
+    ],
+    "business_impact": "May reduce cooling capacity for the production line."
+  },
+  {
+    "id": "INC-1002",
+    "title": "UPS-2 battery alarm and voltage drift",
+    "severity": "P2",
+    "equipment": "UPS-2",
+    "component": "ups_2_battery",
+    "symptoms": [
+      "battery string voltage drift",
+      "temperature rising",
+      "self-test warning"
+    ],
+    "business_impact": "Backup power reliability may be reduced."
+  },
+  {
+    "id": "INC-1003",
+    "title": "Air compressor AC-7 pressure drop",
+    "severity": "P2",
+    "equipment": "Air Compressor AC-7",
+    "component": "air_compressor_AC7",
+    "symptoms": [
+      "discharge pressure below setpoint",
+      "frequent load unload cycle",
+      "possible filter blockage"
+    ],
+    "business_impact": "Pneumatic tools may become unstable."
+  }
+]
+

@@ -1,0 +1,46 @@
+[
+  {
+    "component": "cooling_pump_P204",
+    "metrics": {
+      "temperature_c": 92.4,
+      "flow_m3h": 62.0,
+      "vibration_mm_s": 7.8,
+      "motor_current_a": 43.2
+    },
+    "thresholds": {
+      "temperature_c": 85.0,
+      "flow_m3h_min": 75.0,
+      "vibration_mm_s": 6.0
+    },
+    "status": "abnormal"
+  },
+  {
+    "component": "ups_2_battery",
+    "metrics": {
+      "battery_voltage_v": 384.0,
+      "voltage_drift_percent": 4.6,
+      "cabinet_temperature_c": 38.0,
+      "load_percent": 57.0
+    },
+    "thresholds": {
+      "voltage_drift_percent": 3.0,
+      "cabinet_temperature_c": 35.0
+    },
+    "status": "warning"
+  },
+  {
+    "component": "air_compressor_AC7",
+    "metrics": {
+      "pressure_mpa": 0.52,
+      "setpoint_mpa": 0.68,
+      "filter_delta_p_kpa": 24.0,
+      "motor_current_a": 58.0
+    },
+    "thresholds": {
+      "pressure_mpa_min": 0.62,
+      "filter_delta_p_kpa": 20.0
+    },
+    "status": "warning"
+  }
+]
+

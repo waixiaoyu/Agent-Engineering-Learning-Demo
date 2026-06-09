@@ -1,0 +1,37 @@
+[
+  {
+    "id": "project_site_check",
+    "label": "核对当前项目和门店",
+    "question": "请确认华为坤灵 APP 当前选择的项目、门店是否就是这台 S380 要加入的目标项目。",
+    "why": "官方流程中设备可能已加入其他项目，需要按提示迁移到当前项目；项目归属错误会导致当前项目等待上线。",
+    "expected_user_result": "项目/门店正确，或发现设备在其他项目中并按提示迁移。"
+  },
+  {
+    "id": "sn_check",
+    "label": "核对设备 SN",
+    "question": "请核对 APP 中添加的设备 SN 是否与 S380 机身 SN 一致。",
+    "why": "扫码/SN 开局依赖设备身份一致，SN 不一致会让排查方向偏离。",
+    "expected_user_result": "SN 一致，或发现扫码/录入对象不一致。"
+  },
+  {
+    "id": "wan_address_check",
+    "label": "核对 WAN 地址获取",
+    "question": "请确认 S380 WAN 口地址获取方式符合现场网络，默认 DHCP 场景下保持 DHCP 可用。",
+    "why": "官方资料要求开局前保证 WAN 地址获取和外网通信条件。",
+    "expected_user_result": "WAN 口能获取地址，或发现地址获取异常。"
+  },
+  {
+    "id": "internet_reachability_check",
+    "label": "核对外网通信",
+    "question": "请确认 S380 所在上行网络能访问外部网络，并观察设备是否能完成自动上线。",
+    "why": "扫码开局需要设备完成自动上线；电脑能上网只能作为本地连通性的辅助证据。",
+    "expected_user_result": "外网通信可用，或发现上行通信受限。"
+  },
+  {
+    "id": "redeploy_after_long_wait",
+    "label": "长时间等待后的重新部署",
+    "question": "如果设备长时间未上线，请按官方建议断电重启后重新执行部署，并记录是否恢复。",
+    "why": "官方资料提到等待过久时请求间隔可能变长，可断电重启后重新部署。",
+    "expected_user_result": "重启重新部署后上线，或仍等待上线需要升级。"
+  }
+]

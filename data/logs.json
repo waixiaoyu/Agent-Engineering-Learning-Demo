@@ -1,0 +1,45 @@
+[
+  {
+    "timestamp": "2026-06-01T09:42:10+08:00",
+    "component": "cooling_pump_P204",
+    "level": "WARN",
+    "message": "Outlet temperature reached 92C, threshold 85C."
+  },
+  {
+    "timestamp": "2026-06-01T09:45:22+08:00",
+    "component": "cooling_pump_P204",
+    "level": "WARN",
+    "message": "Flow meter FM-204 dropped to 62 m3/h."
+  },
+  {
+    "timestamp": "2026-06-01T09:48:41+08:00",
+    "component": "cooling_pump_P204",
+    "level": "ERROR",
+    "message": "Vibration trend above baseline for 12 minutes."
+  },
+  {
+    "timestamp": "2026-06-01T10:01:03+08:00",
+    "component": "ups_2_battery",
+    "level": "WARN",
+    "message": "Battery string B voltage drift exceeds 4%."
+  },
+  {
+    "timestamp": "2026-06-01T10:03:18+08:00",
+    "component": "ups_2_battery",
+    "level": "WARN",
+    "message": "Cabinet temperature is 38C, threshold 35C."
+  },
+  {
+    "timestamp": "2026-06-01T10:08:55+08:00",
+    "component": "air_compressor_AC7",
+    "level": "WARN",
+    "message": "Discharge pressure dropped to 0.52 MPa."
+  },
+  {
+    "timestamp": "2026-06-01T10:09:34+08:00",
+    "component": "air_compressor_AC7",
+    "level": "INFO",
+    "message": "Load/unload cycle frequency increased."
+  }
+]
+

@@ -1,0 +1,2 @@
+"""Optional LLM integration package."""
+

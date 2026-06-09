@@ -20,7 +20,7 @@ Agent 需要自行判断：
 这是什么设备？
 有哪些故障现象？
 当前风险高不高？
-应该先查基础排查知识、设备状态、APP 日志、历史案例，还是先追问用户？
+应该先查基础排查知识、设备状态、历史案例，还是生成开局动作核对项让用户现场确认？
 查到的信息是否足够形成处置建议？
 ```
 
@@ -34,7 +34,7 @@ Agent 需要自行判断：
 
 Agent：
 我先按“华为坤灵 APP 开局 + eKitEngine S380 未上线 + AP 未出现在拓扑”理解。
-这类现象需要先区分是设备注册上线问题、APP/项目侧问题、上行网络问题，还是本地接线/供电问题。
+这类现象需要先区分是设备自动上线问题、APP/项目侧问题、上行网络问题，还是本地接线/接入问题。
 我需要先确认两个信息：
 1. S380 上联到哪里？上联口和电源灯状态如何？
 2. 现场电脑接到 S380 下是否能上网？APP 里是“未上线”还是“添加失败”？
@@ -43,17 +43,23 @@ Agent：
 S380 上联到门店路由器 LAN 口，电源灯常亮，上联口有灯闪。电脑接到 S380 下面能上网，路由器开了 DHCP。APP 扫码能添加设备，但是一直显示未上线。
 
 Agent：
-本地基础链路和 DHCP 看起来基本可用。我会优先查 S380 开局未上线的基础排查知识、相似历史案例和设备/APP 状态样例。
+本地基础链路和 DHCP 看起来基本可用。我会优先查 S380 开局未上线的基础排查知识、相似历史案例和设备状态，并生成一组开局动作核对项请现场确认。
 
 Agent 调用工具：
 - runbook_search
 - case_search
 - device_status_query
-- app_log_search
+
+Agent 生成用户核对项：
+- 当前项目和门店是否选对
+- 设备 SN 是否和 APP 中添加的一致
+- S380 是否曾加入其他项目
+- WAN 口是否使用正确的地址获取方式
+- 长时间等待上线后是否按官方建议重启并重新部署
 
 Agent：
-结合证据，优先怀疑设备项目绑定、云连接受限或 APP 项目/SN 绑定状态异常。
-建议先核对项目和绑定关系，再检查 DNS/NTP/HTTPS 出口，不要一开始就恢复出厂。
+结合证据，优先怀疑设备已在其他项目中、WAN 地址获取/外网通信条件不满足，或 APP 项目/SN 归属不一致。
+建议先核对项目归属、设备 SN 和 S380 WAN 口地址获取/外网通信条件，不要一开始就恢复出厂。
 ```
 
 最终输出面向一线运维人员：
@@ -95,7 +101,7 @@ decide_next_action
   ├── search_basic_runbook
   ├── search_historical_cases
   ├── query_device_status
-  ├── search_app_logs
+  ├── ask_onboarding_action_check
   ├── reflect
   ├── generate_response
   ├── record_trace
@@ -121,12 +127,31 @@ tool_or_question_or_final
 | 阶段 | 学习者看到什么 | 学到什么 |
 |---|---|---|
 | understand_symptom | Agent 把用户原话结构化成设备、现象、风险信号 | State 是如何从自然语言产生的 |
-| decide_next_action | Agent 解释下一步是追问、查知识、查案例、查设备状态还是查 APP 日志 | Agentic 决策不是固定 if-else 流程 |
+| decide_next_action | Agent 解释下一步是追问、查知识、查案例、查设备状态还是生成开局动作核对项 | Agentic 决策不是固定 if-else 流程 |
 | call_tool | 页面展示工具输入、输出和命中证据 | Tool Calling 如何接入业务数据 |
 | update_state | 证据被写回 `AgentState` | Agent 如何积累上下文 |
 | reflect | Agent 检查证据是否足够、步骤是否安全 | 自我反思如何提升可靠性 |
 | observe | Langfuse 展示节点、工具、耗时、token 和 trace | 可观测性如何帮助调试 Agent |
 | evaluate | DeepEval 对回答进行质量评测 | Agent 输出如何被量化和回归测试 |
+
+## 案例与架构映射
+
+这个样例不能只是一个“看起来真实”的剧情。每个案例片段都要能落到系统架构里，让学习者知道这段剧情为什么需要某个 State 字段、某个 Tool、某个 LangGraph 节点或某个前端教学卡片。
+
+| 案例片段 | 教学目的 | 技术设计体现 |
+|---|---|---|
+| 用户用自然语言描述“华为坤灵 APP 开局 + S380 未上线 + AP 不进拓扑” | 展示自然语言如何进入 Agent 系统 | `understand_symptom` 解析 `recognized_equipment`、`symptoms`、`risk_signals` |
+| 第一轮缺少拓扑、指示灯、APP 状态和连通性 | 展示 Agent 为什么不应直接下结论 | `missing_info` 写入 State，`decide_next_action` 路由到 `ask_clarifying_question` |
+| 用户补充 S380 上联、DHCP、电脑可上网 | 展示现场证据如何改变判断 | `conversation_turns` 和 `evidence` 更新，本地链路问题权重降低，进入工具查询 |
+| APP 可扫码添加但等待上线 | 展示 Agent 如何把官方排查路径转成用户核对项 | `ask_onboarding_action_check` 生成现场核对清单，用户回填结果进入 State |
+| S380 的上线、DHCP、last_seen 等状态 | 展示业务系统查询如何接入 Tool Calling | `device_status_query` 返回状态摘要并写入 `evidence` |
+| 官方资料约束和基础排查知识 | 展示回答为什么需要证据 grounding | `runbook_search` 返回检查项和来源，影响 `recommended_actions` |
+| “设备已在其他项目中”的相似案例 | 展示案例检索如何辅助排序原因 | `case_search` 返回 `case_hits`，更新 `possible_causes` |
+| 输出建议前先做安全检查 | 展示 Agent 自我反思和闭环 | `reflect_node` 用 checklist 判断 `ready`、`need_more_evidence` 或 `ask_user` |
+| 用户反馈迁移后 S380 上线，但 AP 仍不进拓扑 | 展示处置反馈如何触发再诊断 | `feedback_history` 更新，下一轮聚焦 `remaining_risks` |
+| Langfuse Trace 和 DeepEval Score | 展示工程化观测与评测 | 每个节点、工具调用和最终回答都进入 trace，评测基于真实输出计算 |
+
+因此，案例变化时不应该改 Agent 框架代码，而是替换周边依赖：`demo_cases`、开局动作核对模板、设备状态样例、基础知识、历史案例、评测集和页面文案。
 
 ## Agent Loop 设计
 
@@ -201,8 +226,9 @@ Loop 1:
 
 Loop 2:
 - action: call_tool
-- tools: runbook_search, case_search, device_status_query, app_log_search
-- reason: 已获得拓扑、上联、DHCP 和 APP 状态，需要查询开局排查知识、相似案例和设备注册状态
+- tools: runbook_search, case_search, device_status_query
+- action: ask_onboarding_action_check
+- reason: 已获得拓扑、上联、DHCP 和 APP 状态，需要查询开局排查知识、相似案例和设备状态，并让用户核对项目归属、SN、WAN 地址获取和重新部署动作
 
 Loop 3:
 - action: final
@@ -231,8 +257,8 @@ reflect_node 自我检查
 |---|---|
 | 设备是否明确 | 是否识别出 eKitEngine S380、AP、上联路由器等对象 |
 | 现象是否完整 | 是否覆盖用户描述的未上线、扫码添加、AP 不进拓扑、上联状态等现象 |
-| 证据是否足够 | 是否有基础知识、历史案例、设备状态或 APP 日志支撑判断 |
-| 风险是否处理 | 是否识别开局失败、项目绑定异常、云连接受限、恢复出厂风险等信号 |
+| 证据是否足够 | 是否有基础知识、历史案例、设备状态或用户回填的开局动作核对结果支撑判断 |
+| 风险是否处理 | 是否识别开局失败、项目归属异常、WAN/外网通信异常、恢复出厂风险等信号 |
 | 步骤是否安全 | 是否避免一开始就建议恢复出厂或清空配置 |
 | 升级条件是否明确 | 是否说明何时转人工、停机或升级处理 |
 
@@ -255,14 +281,14 @@ reflection = {
 
 ```text
 Agent：
-建议先核对 S380 是否被其他项目绑定，并检查 DNS/NTP/HTTPS 出口是否受限。
+建议先核对 S380 是否已经在其他项目中，并检查 WAN 口地址获取和外网通信条件。
 
 用户：
-S380 之前被测试项目加过，解绑后重新添加已经上线了，但 AP 还是没有出现在拓扑里。
+S380 之前被测试项目加过，按提示迁移到当前项目后已经上线了，但 AP 还是没有出现在拓扑里。
 
 Agent：
-S380 已上线说明绑定问题已缓解，但 AP 拓扑问题仍在。
-下一步应聚焦 AP 供电、下联端口、AP 上线状态和拓扑刷新。
+S380 已上线说明项目归属问题已缓解，但 AP 拓扑问题仍在。
+下一步应聚焦 AP 接入链路、AP 上线状态、整网自动发现和拓扑刷新。
 ```
 
 处置反馈闭环：
@@ -362,7 +388,7 @@ missing:
 不是固定流程：
 
 ```text
-查知识库 → 查案例 → 查设备状态 → 查 APP 日志
+查知识库 → 查案例 → 查设备状态 → 生成开局动作核对项
 ```
 
 而是动态决策：
@@ -370,7 +396,7 @@ missing:
 | 用户描述 | Agent 倾向动作 |
 |---|---|
 | 设备明确，现象明确 | 检索内置基础排查知识 |
-| 提到扫码、未上线、添加失败 | 查询 APP 日志或设备注册状态 |
+| 提到扫码、未上线、添加失败 | 生成开局动作核对项，必要时查询设备上线状态 |
 | 提到上联、能上网、DHCP | 查询连通性和设备状态样例 |
 | 提到 AP、拓扑、SSID | 查询 AP 状态和拓扑相关案例 |
 | 提到错误码、告警文本、日志关键字 | 搜索日志或告警案例 |
@@ -410,7 +436,7 @@ Agent 的中间回复不必每次都很长，重点是告诉用户：
 | 现象太泛 | “APP 显示未上线、添加失败、无法发现设备，还是拓扑不显示？” |
 | 缺少现场信息 | “S380 上联到哪里？电源灯和上联口指示灯状态如何？” |
 | 缺少连通性信息 | “电脑接到 S380 下是否能上网？现场是否开启 DHCP？” |
-| 涉及高风险操作 | “是否准备恢复出厂或清空配置？操作前是否已确认项目绑定和配置备份？” |
+| 涉及高风险操作 | “是否准备恢复出厂或清空配置？操作前是否已确认项目归属和配置备份？” |
 
 页面右侧应该展示互动过程中的 State 变化：
 
@@ -423,7 +449,7 @@ Turn 1:
 
 Turn 2:
 - risk_signals: 开局无法完成、设备云注册状态不明确
-- next_action: runbook_search + case_search + device_status_query + app_log_search
+- next_action: runbook_search + case_search + device_status_query + ask_onboarding_action_check
 - evidence: ...
 ```
 
@@ -448,7 +474,7 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 ```text
 1. 基础排查知识
 2. 历史故障案例
-3. 示例设备状态与 APP 日志
+3. 示例设备状态与开局动作核对模板
 ```
 
 ### 基础排查知识
@@ -457,9 +483,9 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 
 | 场景 | 现象 | 基础排查知识 |
 |---|---|---|
-| S380 开局未上线 | 扫码添加成功但长时间未上线 | 先查项目/账号绑定、SN 是否重复添加、云连接、DNS/NTP/HTTPS 出口、DHCP 地址获取 |
-| APP 扫码添加失败 | 扫码后直接失败 | 先查二维码/SN、账号权限、项目选择、设备是否已绑定、APP 错误提示 |
-| AP 不进拓扑 | S380 已上线但 AP 不显示 | 先查 AP 供电、下联端口、AP 上线状态、拓扑刷新、SSID 下发状态 |
+| S380 开局未上线 | 扫码添加成功但长时间未上线 | 先查项目/账号归属、SN 是否重复添加、WAN 口地址获取模式、外网通信、DHCP 地址获取 |
+| APP 扫码添加失败 | 扫码后直接失败 | 先查二维码/SN、账号权限、项目选择、设备是否已在其他项目中、APP 错误提示 |
+| AP 不进拓扑 | S380 已上线但 AP 不显示 | 先查 AP 接入、下联链路、AP 上线状态、整网自动发现和拓扑刷新 |
 
 ### 历史故障案例
 
@@ -467,19 +493,58 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 
 | 案例 | 现象 | 最终原因 | 处置 |
 |---|---|---|---|
-| CASE-S380-001 | S380 扫码添加成功但长时间未上线 | 设备已被测试项目绑定 | 解绑旧项目后重新添加 |
+| CASE-S380-001 | S380 扫码添加成功但长时间未上线 | 设备已在其他项目中 | 按官方提示迁移到当前项目 |
 | CASE-S380-002 | APP 扫码添加失败 | 账号无当前项目权限或 SN/二维码不匹配 | 核对账号权限、项目和设备 SN |
-| CASE-S380-003 | S380 已上线但 AP 不进拓扑 | AP 未上线或下联端口无链路/供电 | 检查 AP 供电、端口链路和 AP 在线状态 |
+| CASE-S380-003 | S380 已上线但 AP 不进拓扑 | AP 未上线或未被整网自动发现 | 检查 AP 接入链路、AP 在线状态和拓扑刷新 |
 
-### 示例设备状态与 APP 日志
+### 示例设备状态与开局动作核对模板
 
-用于体现 Agent 会根据现象选择查设备状态或 APP 日志。
+用于体现 Agent 会根据现象选择查设备状态，或生成让用户现场确认的开局动作核对项。
 
-| 对象 | 状态或日志 |
+| 对象 | 示例状态或事件 |
 |---|---|
-| eKitEngine S380 | 本地连通性、DHCP、云注册状态、last_seen、上联口状态 |
-| 华为坤灵 APP | device_add 结果、waiting_online 状态、错误码或提示 |
-| AP | 供电状态、下联端口、AP 在线状态、拓扑刷新状态 |
+| eKitEngine S380 | 本地连通性、DHCP、上线等待状态、上联口状态 |
+| 开局动作核对模板 | 项目/门店是否选对、SN 是否一致、是否曾加入其他项目、WAN 地址获取方式、是否按官方建议重启并重新部署 |
+| AP | 接入链路、AP 在线状态、整网自动发现、拓扑刷新状态 |
+
+## 官方资料校准
+
+S380 案例要以官方资料为约束，避免把演示剧情写成无依据的固定剧本。
+
+当前 V1 可以依据的官方事实：
+
+| 事实 | 对案例设计的约束 |
+|---|---|
+| Huawei eKit App 支持扫码/SN 开局 | 用户入口可以设计为“扫码添加 S380 后等待上线” |
+| S380 可以通过扫码/SN 上线 | 主线设备可以选择 eKitEngine S380 |
+| S380 开局需要满足 WAN 地址获取和外网通信条件 | 排查项应优先包含 DHCP/WAN/外网通信 |
+| S380 上线后可以自动发现整网设备 | AP 不进拓扑可以作为 S380 上线后的下一轮故障 |
+| 已加入其他项目的设备存在迁移到当前项目的处理流程 | “设备已在其他项目中”可以作为历史案例 |
+| 设备长时间未部署时可以断电重启后重新部署 | 长时间 waiting online 时可以给出重启后重新部署的保守建议 |
+
+官方资料入口：
+
+```text
+SN Scanning-based Deployment:
+https://support.huawei.com/enterprise/en/doc/EDOC1100396965/f32d2edd/sn-scanning-based-deployment-automatic-entire-network-discovery
+
+Barcode Scanning-based Deployment:
+https://support.huawei.com/enterprise/en/doc/EDOC1100396965/3d4c76d9/barcode-scanning-based-deployment
+
+SME Network Solution Quick Start Guide:
+https://support.huawei.com/enterprise/en/doc/EDOC1100289274/1eaac1e1/configuring-devices
+```
+
+当前仍属于 V1 演示 fixture 的内容：
+
+```text
+device_status_query 的 onboarding/last_seen 等字段
+ask_onboarding_action_check 生成的核对项和用户回填结果
+CASE-S380-* 历史案例编号
+DeepEval 示例分数
+```
+
+这些内容可以用于教学，但页面和文档里要标注为“示例状态数据”或“演示案例数据”，不能伪装成真实 APP 接口返回。
 
 ## 用户界面
 
@@ -487,32 +552,43 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 
 前端也不是复杂 Debugger，不需要断点、单步执行、手动改 State、重放 Trace 或复杂 JSON Diff。V1 的重点是 **看清楚 Agentic 流程和步骤**。
 
-页面应该是一个 **交互式 Agent 流程教学台**：
+当前页面是一个 **交互式 Agent 入门教程台**，默认先帮助初学者理解概念，再逐步展示流程细节：
 
 ```text
+顶部：入门导览
+- 先解释这个 Demo 在看什么
+- 用短句解释 Agent、Agent Loop、State、Tool、Evidence、Reflection、Eval
+- 明确前端、后端、Agent Runtime 的职责边界
+
 左侧：自然交互
 - 用户输入故障现象
 - Agent 追问关键信息
 - 用户补充现场信息
 - Agent 输出分析和处置建议
 
-中间：流程步骤
-- 1. 理解现象 understand_symptom
-- 2. 判断下一步 decide_next_action
-- 3. 追问或调用工具 ask_user / call_tool
-- 4. 汇总证据 update_state
-- 5. 自我反思 reflect
-- 6. 输出建议 final_answer
-- 7. 观测与评测 observe / evaluate
+中间：流程讲解
+- 理解现象
+- 决定下一步
+- 追问关键信息
+- 查询证据
+- 形成诊断
+- 自我检查
+- 质量评测
 
-右侧：关键过程摘要
-- 当前 State 摘要，不需要完整调试器
-- 工具调用摘要
-- 命中的基础知识或历史案例
-- Reflection Checklist
-- Langfuse Trace 概览
-- DeepEval Score
+右侧：依据与自查
+- 工具结果
+- 现场核对
+- 模型调用
+- 自我检查
+- 评测结果
 ```
+
+页面提供两种学习视图：
+
+| 视图 | 面向对象 | 展示方式 |
+|---|---|---|
+| 入门模式 | 第一次接触 Agent Engineering 的学习者 | 用中文解释每一步做什么、为什么做、得到什么 |
+| 开发者模式 | 已经开始看代码和调试的人 | 展示完整 `AgentState`、工具输入输出、LLM JSON、Trace 和 Eval 细节 |
 
 每个流程步骤用教学卡片展示即可：
 
@@ -520,13 +596,13 @@ V1 不做设备文档导入，先准备几个简单案例和小型知识库，�
 步骤 2：判断下一步
 
 Agent 做了什么：
-识别到“S380 未上线 + AP 不进拓扑 + APP 可扫码添加”，判断需要查询开局基础知识、相似案例和设备/APP 状态。
+识别到“S380 未上线 + AP 不进拓扑 + APP 可扫码添加”，判断需要查询开局基础知识、相似案例和设备状态，并让用户核对关键开局动作。
 
 为什么进入下一步：
-这些现象可能对应项目绑定、云连接、出口访问或拓扑发现问题，需要证据支持。
+这些现象可能对应项目归属、WAN 地址获取、外网通信或整网自动发现问题，需要证据支持。
 
 下一步：
-调用 runbook_search、case_search、device_status_query 和 app_log_search。
+调用 runbook_search、case_search、device_status_query，并生成开局动作核对项让用户确认。
 ```
 
 界面要避免两种极端：
@@ -559,6 +635,61 @@ Agent 做了什么：
 | Observability | Langfuse | V1 记录 Trace / Span / Tool Call / Token / Latency |
 | Evaluation | DeepEval | V1 运行故障回答质量评测 |
 
+## 运行方式
+
+安装依赖：
+
+```bash
+pip install -r requirements.txt
+```
+
+配置 GLM API：
+
+```bash
+cp .env.example .env
+```
+
+在 `.env` 中填写：
+
+```text
+LLM_ENABLED=true
+LLM_PROVIDER=glm
+GLM_API_KEY=你的智谱 GLM API Key
+GLM_MODEL=glm-5.1
+GLM_API_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
+```
+
+本项目参考 `paper-insight` 的做法，把 GLM 作为 OpenAI-compatible Chat Completions 调用：请求地址使用 `open.bigmodel.cn`，请求体包含 `model`、`messages`、`temperature` 和 `max_tokens`。正式教学演示建议一定配置 `GLM_API_KEY`，这样页面会展示 `understand_symptom`、`decide_next_action`、`diagnose` 三类真实模型调用。未配置 Key 时 Agent 会退回本地规则，只用于开发、测试和无网络环境下跑通流程。
+
+启动 API：
+
+```bash
+uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+启动教程页面：
+
+```bash
+streamlit run app/ui/streamlit_app.py --server.port 8502
+```
+
+页面只负责前端交互，所有 Agent 运行都通过 `API Base URL` 调用 FastAPI。GLM Key、模型名和接口地址只在后端 `.env` 或后端进程环境变量里配置，前端不会直接持有模型 Key。
+
+```text
+Streamlit UI
+  -> FastAPI /chat
+  -> service layer
+  -> LangGraph Agent
+  -> Tools / GLM / Evaluation
+```
+
+运行测试和评测：
+
+```bash
+pytest -q
+python -m app.evaluation.run_eval
+```
+
 建议分层：
 
 ```text
@@ -571,15 +702,16 @@ app/
     router.py       # 工具选择和节点流转
     nodes/          # understand / decide / tool / diagnose / final
     prompts/        # 系统提示词
-  tools/            # device_status_query / app_log_search / runbook_search / case_search
+  tools/            # device_status_query / runbook_search / case_search
   knowledge/        # V1 轻量知识库；V2 文档导入、解析、检索
   observability/    # Langfuse 封装
   evaluation/       # DeepEval 数据集与指标
   schemas/          # 请求响应模型
   ui/               # Streamlit 页面
+    api_client.py   # 前端 HTTP 客户端，只调用 FastAPI
 
 data/
-  demo/             # 示例设备状态、APP 日志、历史案例、基础知识
+  demo/             # 示例设备状态、开局动作核对模板、历史案例、基础知识
 ```
 
 分离原则：
@@ -597,7 +729,7 @@ Knowledge 模块 V1 只保留轻量规则和案例检索边界，设备文档导
 ```text
 eKitEngine S380 开局、APP 扫码添加、AP 拓扑异常只是不同 scenario。
 Scenario 变化时，框架代码原则上不变。
-变化的应该是 demo case、fixture 数据、基础知识、历史案例、设备状态样例、APP 日志样例、评测集和页面展示文案。
+变化的应该是 demo case、fixture 数据、基础知识、历史案例、设备状态样例、开局动作核对模板、评测集和页面展示文案。
 ```
 
 这要求核心框架保持稳定：
@@ -663,7 +795,7 @@ Agent 判断是否需要追问
   ↓
 用户补充现场信息
   ↓
-Agent 继续进入 Loop，决定调用 runbook_search / case_search / device_status_query / app_log_search
+Agent 继续进入 Loop，决定调用 runbook_search / case_search / device_status_query，并生成开局动作核对项
   ↓
 工具返回证据
   ↓
@@ -721,7 +853,7 @@ document_search Tool
 |---|---|
 | 设备文档导入 | 支持用户准备的设备手册、维保指南、产品文档 |
 | 向量 RAG | 让设备手册、维保指南、历史案例都能被语义检索 |
-| 状态趋势分析 | 查询时间窗口内的设备上线、云连接、APP 事件和拓扑变化 |
+| 状态趋势分析 | 查询时间窗口内的设备上线、用户核对结果和拓扑变化 |
 | 工单生成 | 将最终处置建议转成标准工单 |
 | 评测集扩展 | 增加更多设备、更多故障现象和更严格指标 |
 | Trace 分析 | 对 Langfuse trace 做批量分析和性能优化 |

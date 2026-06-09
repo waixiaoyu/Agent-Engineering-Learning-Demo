@@ -1,0 +1,32 @@
+[
+  {
+    "id": "CASE-S380-001",
+    "title": "S380 扫码添加成功但长时间未上线",
+    "scenario": "华为坤灵 APP 开局",
+    "equipment": ["eKitEngine S380"],
+    "symptoms": ["S380 扫码添加后未上线", "APP 可扫码添加设备"],
+    "root_cause": "设备已在其他项目中，当前项目只能等待上线或按提示迁移。",
+    "resolution": "核对当前项目、门店和设备 SN；如 APP 提示设备已在其他项目中，按官方提示迁移到当前项目。",
+    "teaching_point": "相似案例用于影响原因排序，但不替代现场核对。"
+  },
+  {
+    "id": "CASE-S380-002",
+    "title": "APP 扫码添加失败",
+    "scenario": "华为坤灵 APP 开局",
+    "equipment": ["华为坤灵 APP", "eKitEngine S380"],
+    "symptoms": ["APP 扫码添加失败"],
+    "root_cause": "账号无当前项目权限、SN/二维码不匹配，或设备已在其他项目中。",
+    "resolution": "核对账号权限、项目选择、设备 SN 和 APP 错误提示；多账号复现时升级处理。",
+    "teaching_point": "添加失败和添加成功但未上线应走不同排查路径。"
+  },
+  {
+    "id": "CASE-S380-003",
+    "title": "S380 已上线但 AP 未出现在拓扑",
+    "scenario": "华为坤灵 APP 开局后续排查",
+    "equipment": ["eKitEngine S380", "AP"],
+    "symptoms": ["AP 未出现在拓扑", "S380 已上线"],
+    "root_cause": "AP 未上线、下联链路未满足，或整网自动发现/拓扑刷新尚未完成。",
+    "resolution": "确认 AP 接入链路、AP 在线状态、整网自动发现和拓扑刷新状态。",
+    "teaching_point": "用户反馈会改变问题焦点，Agent 不应重复上一轮建议。"
+  }
+]
