@@ -35,6 +35,118 @@ STEP_PURPOSES = {
     "evaluate": "用简单指标检查回答是否覆盖现象、使用证据、可执行且有风险意识。",
 }
 
+STEP_IO_CONTRACTS = {
+    "understand_symptom": {
+        "input": [
+            ("user_input", "本轮用户原话，来自 FastAPI /chat 的 message"),
+            ("previous_state", "上一轮保留下来的 AgentState，用于多轮上下文"),
+            ("GLM / local rules", "GLM 负责辅助结构化理解；未配置 Key 时用本地规则兜底"),
+        ],
+        "output": [
+            ("scenario", "识别到的业务场景"),
+            ("recognized_equipment", "识别到的设备或系统对象"),
+            ("symptoms", "结构化后的故障现象"),
+            ("observations", "用户已经提供的现场事实"),
+            ("missing_info", "还缺哪些关键信息"),
+            ("next_action", "初步下一步动作"),
+        ],
+        "sample_output_paths": ["scenario", "recognized_equipment", "symptoms", "observations", "missing_info", "next_action"],
+    },
+    "decide_next_action": {
+        "input": [
+            ("scenario / symptoms", "上一步理解出的场景和故障现象"),
+            ("observations", "已经掌握的现场信息"),
+            ("missing_info", "仍然缺失的信息"),
+            ("feedback_history", "用户是否反馈了上一轮处置结果"),
+        ],
+        "output": [
+            ("next_action", "ask_user、investigate 或 investigate_remaining_risk"),
+            ("llm.planner", "模型或规则给出的规划理由"),
+            ("loop_history", "供页面展示的决策原因"),
+        ],
+        "sample_output_paths": ["next_action", "llm.planner", "loop_history"],
+    },
+    "ask_clarifying_question": {
+        "input": [
+            ("missing_info", "缺失信息列表"),
+            ("question_map", "缺失字段到自然语言问题的映射"),
+        ],
+        "output": [
+            ("final_answer", "本轮追问用户的问题"),
+            ("loop_history", "记录为什么本轮要追问"),
+        ],
+        "sample_output_paths": ["missing_info", "final_answer"],
+    },
+    "collect_evidence": {
+        "input": [
+            ("user_input / scenario", "用于构造查询语句"),
+            ("recognized_equipment / symptoms", "用于查知识、案例和设备状态"),
+            ("observations", "用于生成现场核对项"),
+        ],
+        "output": [
+            ("runbook_hits", "命中的基础排查知识"),
+            ("case_hits", "命中的历史案例"),
+            ("device_status", "示例设备状态"),
+            ("onboarding_action_checks", "让用户现场核对的开局动作排查项"),
+            ("evidence", "统一证据集合"),
+            ("tool_calls", "工具调用记录"),
+        ],
+        "sample_output_paths": ["runbook_hits", "case_hits", "device_status", "onboarding_action_checks"],
+    },
+    "diagnose": {
+        "input": [
+            ("runbook_hits", "基础知识证据"),
+            ("case_hits", "相似案例证据"),
+            ("device_status", "设备状态证据"),
+            ("onboarding_action_checks", "用户需要现场核对的动作"),
+            ("feedback_history", "上一轮处置反馈"),
+        ],
+        "output": [
+            ("diagnosis", "当前诊断结论"),
+            ("possible_causes", "可能原因排序"),
+            ("recommended_actions", "建议处置步骤"),
+            ("llm.diagnosis", "GLM 辅助诊断结果或本地兜底原因"),
+        ],
+        "sample_output_paths": ["diagnosis", "possible_causes", "recommended_actions", "llm.diagnosis"],
+    },
+    "reflect": {
+        "input": [
+            ("recognized_equipment / symptoms", "是否已经明确对象和现象"),
+            ("runbook_hits / case_hits / device_status", "是否已有证据支撑"),
+            ("recommended_actions", "建议是否包含风险控制"),
+        ],
+        "output": [
+            ("reflection", "自我检查 checklist"),
+            ("reflection.decision", "ready 或 need_more_evidence"),
+        ],
+        "sample_output_paths": ["reflection"],
+    },
+    "final": {
+        "input": [
+            ("diagnosis", "诊断结论"),
+            ("possible_causes", "可能原因排序"),
+            ("recommended_actions", "建议动作"),
+            ("runbook_hits / case_hits", "回答引用的依据"),
+            ("onboarding_action_checks", "需要用户现场核对的项目"),
+        ],
+        "output": [
+            ("final_answer", "面向一线人员的 Markdown 回答"),
+        ],
+        "sample_output_paths": ["final_answer"],
+    },
+    "evaluate": {
+        "input": [
+            ("final_answer", "最终回答"),
+            ("AgentState", "本轮所有结构化状态和证据"),
+        ],
+        "output": [
+            ("evaluation", "本地 DeepEval 风格质量指标"),
+            ("trace", "Langfuse 风格 trace 摘要"),
+        ],
+        "sample_output_paths": ["evaluation", "trace"],
+    },
+}
+
 TERM_GLOSSARY = {
     "Agent": "会根据当前信息自己决定下一步动作的程序。这里不是只聊天，而是会追问、查工具、汇总证据和自查。",
     "Agent Loop": "一次故障处理里的循环：理解现象 -> 决定下一步 -> 查证据或追问 -> 诊断 -> 自查 -> 回答。",
@@ -124,6 +236,68 @@ def _render_conversation() -> None:
                 st.error(f"后端 API 调用失败：{exc}")
 
 
+def _resolve_path(source: dict[str, Any] | None, path: str) -> Any:
+    current: Any = source or {}
+    for part in path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return None
+    return current
+
+
+def _format_contract_value(value: Any) -> Any:
+    if value is None or value == "" or value == [] or value == {}:
+        return "暂无"
+    if isinstance(value, str):
+        return value if len(value) <= 700 else value[:700] + "..."
+    if isinstance(value, list):
+        if len(str(value)) <= 900:
+            return value
+        return value[:3]
+    if isinstance(value, dict):
+        if len(str(value)) <= 900:
+            return value
+        return {key: value[key] for key in list(value.keys())[:6]}
+    return value
+
+
+def _render_step_io_contract(
+    step: str,
+    state: dict[str, Any],
+    result: dict[str, Any] | None,
+    *,
+    developer_mode: bool,
+) -> None:
+    contract = STEP_IO_CONTRACTS.get(step)
+    if not contract:
+        return
+
+    st.markdown("**技术输入**")
+    for field, meaning in contract["input"]:
+        st.markdown(f"- `{field}`：{meaning}")
+
+    st.markdown("**技术输出**")
+    for field, meaning in contract["output"]:
+        st.markdown(f"- `{field}`：{meaning}")
+
+    sample_paths = contract.get("sample_output_paths", [])
+    if not sample_paths:
+        return
+
+    with st.expander("本次运行的输出字段", expanded=False):
+        for path in sample_paths:
+            value = _resolve_path(state, path)
+            if value is None and result:
+                value = _resolve_path(result, path)
+
+            st.markdown(f"**`{path}`**")
+            if developer_mode and value is not None:
+                st.json(value)
+            else:
+                st.write(_format_contract_value(value))
+
+
 def _render_flow(result: dict | None, *, developer_mode: bool) -> None:
     st.subheader("流程讲解")
     if not result:
@@ -131,9 +305,10 @@ def _render_flow(result: dict | None, *, developer_mode: bool) -> None:
         return
 
     workflow = result.get("workflow", [])
+    state = result.get("state", {})
     st.caption(" -> ".join(STEP_LABELS.get(step, step) for step in workflow))
 
-    loop_history = result.get("state", {}).get("loop_history", [])
+    loop_history = state.get("loop_history", [])
     for index, item in enumerate(loop_history, start=1):
         step = item.get("step", "step")
         label = STEP_LABELS.get(step, step)
@@ -144,6 +319,7 @@ def _render_flow(result: dict | None, *, developer_mode: bool) -> None:
                 st.markdown("**调用工具**：" + "、".join(item["tools"]))
             if item.get("generated_action"):
                 st.markdown(f"**生成动作**：{item['generated_action']}")
+            _render_step_io_contract(step, state, result, developer_mode=developer_mode)
             if developer_mode:
                 st.json(item)
 

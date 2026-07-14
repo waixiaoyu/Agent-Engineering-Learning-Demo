@@ -134,6 +134,21 @@ tool_or_question_or_final
 | observe | Langfuse 展示节点、工具、耗时、token 和 trace | 可观测性如何帮助调试 Agent |
 | evaluate | DeepEval 对回答进行质量评测 | Agent 输出如何被量化和回归测试 |
 
+## 关键步骤输入/输出契约
+
+教程实例里，每个流程卡片都要让学习者看清楚这一关的输入和输出。这里的字段契约也是剧情可替换的边界：换成其他故障案例时，核心节点和字段语义保持不变，只替换知识库、案例、设备状态样例和页面文案。
+
+| 步骤 | 技术输入 | 技术输出 | 在本教程里怎么看 |
+|---|---|---|---|
+| `understand_symptom` | 用户本轮原话、上一轮 `AgentState`、GLM 或本地规则 | `scenario`、`recognized_equipment`、`symptoms`、`observations`、`missing_info`、初始 `next_action` | 用户说“APP 显示未上线”后，页面展示 Agent 识别到 S380、APP 上线状态、AP 拓扑缺失和还缺的现场信息 |
+| `decide_next_action` | `scenario`、`symptoms`、`observations`、`missing_info`、`feedback_history` | `next_action`、`llm.planner`、`loop_history` | 如果信息不足，进入追问；如果 APP 状态、上联、DHCP 等信息已齐，进入证据查询 |
+| `ask_clarifying_question` | `missing_info`、追问模板 | `final_answer`、`loop_history` | 第一轮不直接下结论，而是问上联、指示灯、DHCP、APP 状态和现场连通性 |
+| `collect_evidence` | 用户输入、场景、设备、现象、现场观察 | `runbook_hits`、`case_hits`、`device_status`、`onboarding_action_checks`、`evidence`、`tool_calls` | 页面展示 Agent 查了基础排查知识、历史案例、示例设备状态，并生成让用户核对的开局动作 |
+| `diagnose` | 知识命中、案例命中、设备状态、开局动作核对项、用户反馈 | `diagnosis`、`possible_causes`、`recommended_actions`、`llm.diagnosis` | 可能原因从“物理链路”转向“项目归属、WAN 获取地址、云端上线、整网发现”等更有依据的路径 |
+| `reflect` | 已识别对象、现象、证据、建议动作 | `reflection`、`reflection.decision` | 输出前检查是否有证据、是否避免高风险动作、是否需要升级人工处理 |
+| `final` | 诊断、原因排序、建议动作、证据、现场核对项 | `final_answer` | 把技术判断整理成一线人员可以执行的排查步骤 |
+| `evaluate` | `final_answer` 和完整 `AgentState` | `evaluation`、`trace` | 用 DeepEval 风格指标检查回答质量，并保留 Langfuse 风格 trace 摘要 |
+
 ## 案例与架构映射
 
 这个样例不能只是一个“看起来真实”的剧情。每个案例片段都要能落到系统架构里，让学习者知道这段剧情为什么需要某个 State 字段、某个 Tool、某个 LangGraph 节点或某个前端教学卡片。

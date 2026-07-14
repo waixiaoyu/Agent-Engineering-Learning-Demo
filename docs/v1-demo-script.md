@@ -113,6 +113,23 @@ controlled demo data
 
 这张表也定义了“剧情可替换”的边界：核心节点、State 字段语义、Tool 接口和 UI 布局保持稳定；变化的是场景输入、知识条目、历史案例、开局动作核对模板、fixture 数据、评测集和页面文案。
 
+## 关键步骤输入/输出
+
+这部分要固化到教程实例里。页面不是只告诉学习者“Agent 做了什么”，还要明确每个关节步骤吃进去什么、吐出来什么，以及这些输出如何成为下一步的输入。
+
+| 步骤 | 输入 | 输出 | S380 剧情里的体现 |
+|---|---|---|---|
+| `understand_symptom` | 用户本轮输入、上一轮 `AgentState`、GLM 结构化结果或本地规则 | `scenario`、`recognized_equipment`、`symptoms`、`observations`、`missing_info`、初始 `next_action` | 从“APP 里显示未上线”识别出华为坤灵 APP 开局、eKitEngine S380 未上线、AP 未进拓扑，并记录还缺上联、指示灯、DHCP、现场连通性等信息 |
+| `decide_next_action` | 已识别场景、设备、现象、现场观察、缺失信息、用户反馈历史 | `next_action`、规划理由、`loop_history` | 第一轮因为缺少现场信息而选择 `ask_user`；第二轮信息足够后选择 `investigate`；用户反馈 S380 已上线但 AP 仍缺失时，转为 `investigate_remaining_risk` |
+| `ask_clarifying_question` | `missing_info`、缺失字段到自然语言问题的映射 | 本轮追问文本、追问原因 | 追问 S380 上联到哪里、上联口/电源灯状态、APP 具体状态、电脑接入 S380 是否能上网、路由器是否开启 DHCP |
+| `collect_evidence` | 用户输入、场景、设备、现象、现场观察 | `runbook_hits`、`case_hits`、`device_status`、`onboarding_action_checks`、统一 `evidence`、`tool_calls` | 查询 S380 开局知识、相似历史案例、示例设备状态，并生成“核对项目归属、SN、WAN 地址、重新部署动作”的现场核对项 |
+| `diagnose` | 知识库命中、案例命中、设备状态、核对项、用户反馈 | `diagnosis`、`possible_causes`、`recommended_actions`、`llm.diagnosis` | 把原因排序到项目归属、WAN 地址获取、云端上线、整网自动发现、AP 接入等路径，并给出低风险排查顺序 |
+| `reflect` | 设备/现象是否明确、证据是否充足、建议动作是否安全、是否有升级条件 | `reflection` checklist、`reflection.decision` | 检查回答是否避免一开始恢复出厂，是否要求先核对项目归属和连通性，是否说明需要升级处理的边界 |
+| `final` | 诊断结论、原因排序、建议动作、证据、现场核对项 | 面向一线人员的 `final_answer` | 最终回答要包含当前判断、优先排查顺序、用户现场要核对的动作和下一轮反馈方式 |
+| `evaluate` | `final_answer`、完整 `AgentState`、工具和 trace 摘要 | `evaluation`、`trace` | DeepEval 风格指标检查回答是否覆盖现象、引用证据、可执行、安全；Langfuse 风格 trace 展示节点路径和工具调用 |
+
+这张表的教学重点是数据流：`understand_symptom` 的输出变成 `decide_next_action` 的输入，`collect_evidence` 的输出变成 `diagnose` 的输入，`reflect` 的结论决定能否进入 `final`。因此剧情可以换，但这套输入/输出契约不能随剧情散掉。
+
 ## 官方资料校准
 
 这个案例必须基于官方资料做约束。当前 V1 剧情以华为官方支持文档中的 **Huawei eKit App 扫码开局、S380 上线、S380 整网自动发现** 为依据。
